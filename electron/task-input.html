@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+    .wrap {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(6, 8, 12, 0.94);
+      border: 1px solid rgba(0, 229, 200, 0.35);
+      border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 24px rgba(0,229,200,0.15);
+    }
+    .prefix {
+      color: #00E5C8;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #C9D6E3;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    input::placeholder {
+      color: #5A6A7A;
+    }
+    .hint {
+      color: #5A6A7A;
+      font-size: 11px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="prefix">▸</span>
+    <input id="goal" type="text" placeholder="what should zek'thar do?" autofocus />
+    <span class="hint">↵ run · esc cancel</span>
+  </div>
+  <script>
+    const input = document.getElementById('goal');
+    input.focus();
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const goal = input.value.trim();
+        if (goal) window.taskAPI.submit(goal);
+        else window.taskAPI.cancel();
+      } else if (e.key === 'Escape') {
+        window.taskAPI.cancel();
+      }
+    });
+  </script>
+</body>
+</html>

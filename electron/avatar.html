@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zek'thar</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #00E5C8;
+      --accent-dim: #00E5C840;
+      --bg: rgba(6, 8, 12, 0.9);
+      --text: #C9D6E3;
+      --text-dim: #5A6A7A;
+    }
+
+    html, body {
+      background: transparent;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .container {
+      width: 280px;
+      height: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      -webkit-app-region: no-drag;
+    }
+
+    /* Draggable header */
+    .drag-handle {
+      width: 100%;
+      height: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: grab;
+      -webkit-app-region: drag;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .drag-dots {
+      display: flex;
+      gap: 4px;
+    }
+    .drag-dots span {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+
+    /* Avatar circle */
+    .avatar-ring {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      box-shadow:
+        0 0 40px rgba(0, 229, 200, 0.15),
+        inset 0 0 30px rgba(0, 229, 200, 0.1);
+      transition: border-color 0.3s, box-shadow 0.3s;
+      overflow: hidden;
+    }
+    .avatar-ring.speaking {
+      border-color: var(--accent);
+      box-shadow:
+        0 0 60px rgba(0, 229, 200, 0.3),
+        inset 0 0 40px rgba(0, 229, 200, 0.15);
+    }
+    .avatar-ring.listening {
+      border-color: #FFD700;
+      box-shadow:
+        0 0 60px rgba(255, 215, 0, 0.3),
+        inset 0 0 40px rgba(255, 215, 0, 0.15);
+    }
+    .avatar-ring.task-listening {
+      border-color: #FF3B6F;
+      animation: pulse-task 0.9s ease-in-out infinite alternate;
+    }
+    @keyframes pulse-task {
+      from {
+        box-shadow:
+          0 0 30px rgba(255, 59, 111, 0.35),
+          inset 0 0 30px rgba(255, 59, 111, 0.10);
+      }
+      to {
+        box-shadow:
+          0 0 70px rgba(255, 59, 111, 0.65),
+          inset 0 0 40px rgba(255, 59, 111, 0.20);
+      }
+    }
+
+    /* Close button */
+    .close-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1px solid #FF4A6E;
+      background: var(--bg);
+      color: #FF4A6E;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+    .close-btn:hover {
+      background: #FF4A6E;
+      color: #000;
+    }
+    .close-btn.visible {
+      display: flex;
+    }
+    .close-btn svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      fill: none;
+    }
+
+    .avatar-wrapper {
+      position: relative;
+    }
+
+    .avatar-ring video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+
+    .avatar-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+    .avatar-placeholder .symbol {
+      font-size: 36px;
+      opacity: 0.5;
+    }
+
+    /* Status text */
+    .status {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      max-width: 240px;
+      line-height: 1.4;
+    }
+    .status.highlight {
+      color: var(--accent);
+    }
+
+    /* Control buttons */
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--accent-dim);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      border-color: var(--accent);
+      background: rgba(0, 229, 200, 0.1);
+    }
+    .btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    .btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Toast messages */
+    .toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg);
+      border: 1px solid var(--accent-dim);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 10px;
+      color: var(--text);
+      max-width: 220px;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    .toast.visible { opacity: 1; }
+
+    /* Spinner */
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--accent-dim);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="drag-handle">
+      <div class="drag-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="avatar-wrapper">
+      <button class="close-btn" id="closeBtn" title="End Session">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="avatar-ring" id="avatarRing">
+        <video id="avatarVideo" autoplay playsinline style="display: none;"></video>
+        <div class="avatar-placeholder" id="placeholder">
+          <div class="symbol">&#9670;</div>
+          <span>Initializing...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="status" id="status">Press Cmd+Shift+Z to hide</div>
+
+    <div class="controls">
+      <button class="btn" id="btnConnect" title="Connect">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
+      <button class="btn" id="btnCapture" title="Capture Screen (Cmd+Shift+S)">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </button>
+      <button class="btn" id="btnMic" title="Push to Talk">
+        <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      </button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@anam-ai/js-sdk@latest";
+    import { AnamEvent } from "https://esm.sh/@anam-ai/js-sdk@latest/dist/module/types";
+
+    let anamClient = null;
+    let isConnected = false;
+    const taskCheckedIds = new Set();
+
+    // Push-to-talk task mode: Cmd+Shift+V opens a window where every
+    // transcribed user utterance is FORCED to a task — no classifier.
+    // - PTT_INITIAL_MS: how long to wait for the FIRST transcript chunk
+    //   after the user presses the hotkey (gives them time to speak).
+    // - PTT_SILENCE_MS: how long to wait after the LAST chunk before
+    //   committing the accumulated text.
+    const PTT_INITIAL_MS = 8000;
+    const PTT_SILENCE_MS = 2000;
+    let pttListening = false;
+    let pttHasChunk = false;
+    let pttBuffer = [];
+    let pttSilenceTimer = null;
+
+    // Voice-task trigger: a transcribed user utterance becomes a task when a
+    // tiny Claude Haiku classifier says so. Fast filter "contains zek" gates
+    // the LLM call so most chat never hits the network.
+    const NAME_HINT_RE = /\bzek/i;
+
+    async function classifyIntent(transcript) {
+      try {
+        const res = await fetch('http://localhost:3000/api/voice/intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript }),
+        });
+        if (!res.ok) return { is_task: false, goal: '' };
+        return await res.json();
+      } catch (err) {
+        console.warn('[voice-task] intent classify failed:', err.message);
+        return { is_task: false, goal: '' };
+      }
+    }
+
+    const avatarRing = document.getElementById('avatarRing');
+    const avatarVideo = document.getElementById('avatarVideo');
+    const placeholder = document.getElementById('placeholder');
+    const status = document.getElementById('status');
+    const btnConnect = document.getElementById('btnConnect');
+    const btnCapture = document.getElementById('btnCapture');
+    const btnMic = document.getElementById('btnMic');
+    const toast = document.getElementById('toast');
+    const closeBtn = document.getElementById('closeBtn');
+
+    function showToast(message, duration = 3000) {
+      toast.textContent = message;
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), duration);
+    }
+
+    function setStatus(text, highlight = false) {
+      status.textContent = text;
+      status.classList.toggle('highlight', highlight);
+    }
+
+    async function connect() {
+      if (isConnected) return;
+
+      placeholder.innerHTML = '<div class="spinner"></div>';
+      setStatus('Connecting to Zek\'thar...');
+
+      try {
+        const sessionToken = await window.electronAPI.getSessionToken();
+        if (!sessionToken) throw new Error('No session token');
+
+        anamClient = createClient(sessionToken, {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+          ],
+        });
+
+        anamClient.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => {
+          isConnected = true;
+          placeholder.style.display = 'none';
+          avatarVideo.style.display = 'block';
+          btnConnect.classList.add('active');
+          closeBtn.classList.add('visible');
+          setStatus('Cmd+Shift+S to ask Zek\'thar', true);
+          showToast('Zek\'thar is online!');
+        });
+
+        anamClient.addListener(AnamEvent.CONNECTION_CLOSED, () => {
+          handleDisconnect();
+        });
+
+        anamClient.addListener(AnamEvent.AGENT_STARTED_TALKING, () => {
+          avatarRing.classList.add('speaking');
+        });
+
+        anamClient.addListener(AnamEvent.AGENT_STOPPED_TALKING, () => {
+          avatarRing.classList.remove('speaking');
+        });
+
+        // Mirror Anam's conversation history into our Claude memory so
+        // screen captures inherit the full chat context. ALSO sniff each
+        // new user transcript for a task trigger (wake-word + imperative).
+        anamClient.addListener(AnamEvent.MESSAGE_HISTORY_UPDATED, (messages) => {
+          window.electronAPI.sendAnamHistory(messages);
+          if (!Array.isArray(messages)) return;
+          for (const msg of messages) {
+            if (!msg || !msg.id || msg.role !== 'user') continue;
+            if (taskCheckedIds.has(msg.id)) continue;
+            taskCheckedIds.add(msg.id);
+            const text = String(msg.content || '').trim();
+            if (!text) continue;
+            window.electronAPI.logVoice('user-said', text);
+
+            // PTT mode: every utterance is task input, no classifier needed.
+            if (pttListening) {
+              pttBuffer.push(text);
+              try { anamClient.interruptPersona(); } catch (_) {}
+              window.electronAPI.logVoice('PTT-chunk', text);
+              resetPttTimer();
+              continue;
+            }
+
+            // Casual voice: classifier decides.
+            window.electronAPI.logVoice('classifying', text);
+            classifyIntent(text).then(({ is_task, goal }) => {
+              if (is_task && goal) {
+                window.electronAPI.logVoice('TRIGGER', goal);
+                try { anamClient.interruptPersona(); } catch (_) {}
+                showToast('Zek\'thar is on it…');
+                window.electronAPI.runTask(goal);
+              } else {
+                window.electronAPI.logVoice('chat-not-task', text);
+              }
+            });
+          }
+        });
+
+        await anamClient.streamToVideoElement('avatarVideo');
+
+      } catch (err) {
+        console.error('Connection failed:', err);
+        placeholder.innerHTML = '<div class="symbol">&#9670;</div><span>Connection failed</span>';
+        setStatus('Click connect to retry');
+        showToast('Connection failed: ' + err.message);
+      }
+    }
+
+    function handleDisconnect() {
+      isConnected = false;
+      avatarVideo.style.display = 'none';
+      placeholder.style.display = 'flex';
+      placeholder.innerHTML = '<div class="symbol">&#9670;</div><span>Disconnected</span>';
+      btnConnect.classList.remove('active');
+      closeBtn.classList.remove('visible');
+      avatarRing.classList.remove('speaking', 'listening');
+      setStatus('Click connect to rejoin');
+    }
+
+    async function captureAndAnalyze() {
+      if (!isConnected) {
+        showToast('Connect first!');
+        return;
+      }
+
+      setStatus('Looking at your screen...', true);
+      btnCapture.classList.add('active');
+
+      try {
+        const result = await window.electronAPI.chat(null);
+        if (result?.scene && anamClient) {
+          // Silently inject screen context so spoken follow-ups are screen-aware.
+          try { anamClient.addContext(`[on-screen now] ${result.scene}`); } catch (_) {}
+        }
+        if (result?.speech && anamClient) {
+          anamClient.talk(result.speech);
+          showToast('Screen captured!');
+        }
+      } catch (err) {
+        console.error('Chat failed:', err);
+        showToast('Chat failed');
+      }
+
+      btnCapture.classList.remove('active');
+      setStatus('Cmd+Shift+S to ask Zek\'thar', true);
+    }
+
+    // Button handlers
+    btnConnect.addEventListener('click', () => {
+      if (isConnected && anamClient) {
+        anamClient.stopStreaming();
+        anamClient = null;
+        handleDisconnect();
+      } else {
+        connect();
+      }
+    });
+
+    btnCapture.addEventListener('click', captureAndAnalyze);
+
+    // Close button handler
+    closeBtn.addEventListener('click', () => {
+      if (isConnected && anamClient) {
+        anamClient.stopStreaming();
+        anamClient = null;
+        handleDisconnect();
+      }
+    });
+
+    // Mic button is decorative for now (Anam SDK still has its own audio loop).
+    // Cmd+Shift+S is the trigger for "look at the screen and respond".
+    btnMic.addEventListener('mousedown', () => {
+      if (!isConnected) return;
+      btnMic.classList.add('active');
+      avatarRing.classList.add('listening');
+    });
+    btnMic.addEventListener('mouseup', () => {
+      btnMic.classList.remove('active');
+      avatarRing.classList.remove('listening');
+    });
+    btnMic.addEventListener('mouseleave', () => {
+      btnMic.classList.remove('active');
+      avatarRing.classList.remove('listening');
+    });
+
+    // Listen for speech from global Cmd+Shift+S shortcut
+    window.electronAPI.onSpeech((speech) => {
+      if (speech && anamClient && isConnected) {
+        anamClient.talk(speech);
+        showToast('Zek\'thar is responding...');
+      }
+    });
+
+    // Receive screen-context summaries from the chat pipeline and silently
+    // inject them into Anam's persona context — so spoken follow-ups can
+    // reason about what's currently on screen.
+    window.electronAPI.onContext((scene) => {
+      if (scene && anamClient && isConnected) {
+        try { anamClient.addContext(`[on-screen now] ${scene}`); } catch (_) {}
+      }
+    });
+
+    // Push-to-talk task mode helpers.
+    function setPttTimer(ms) {
+      if (pttSilenceTimer) clearTimeout(pttSilenceTimer);
+      pttSilenceTimer = setTimeout(commitPtt, ms);
+    }
+    // Called when a transcript chunk arrives during PTT mode — switches us
+    // into the short post-speech silence window.
+    function resetPttTimer() {
+      pttHasChunk = true;
+      setPttTimer(PTT_SILENCE_MS);
+    }
+
+    function startPtt() {
+      if (pttListening) return;
+      if (!isConnected) {
+        showToast('Connect first!');
+        return;
+      }
+      pttListening = true;
+      pttHasChunk = false;
+      pttBuffer = [];
+      avatarRing.classList.add('task-listening');
+      setStatus('Listening for task…', true);
+      try { anamClient.interruptPersona(); } catch (_) {}
+      window.electronAPI.logVoice('PTT-start', 'listening for task');
+      // Generous initial wait so the user has time to start speaking and
+      // for Anam STT to deliver its first chunk. Once a chunk arrives,
+      // we drop to the short silence window.
+      setPttTimer(PTT_INITIAL_MS);
+    }
+
+    function commitPtt() {
+      if (!pttListening) return;
+      pttListening = false;
+      if (pttSilenceTimer) { clearTimeout(pttSilenceTimer); pttSilenceTimer = null; }
+      avatarRing.classList.remove('task-listening');
+      setStatus('Cmd+Shift+S to ask Zek\'thar', true);
+      const goal = pttBuffer.join(' ').replace(/\s+/g, ' ').trim();
+      pttBuffer = [];
+      if (goal) {
+        window.electronAPI.logVoice('PTT-commit', goal);
+        try { anamClient.interruptPersona(); } catch (_) {}
+        showToast('Zek\'thar is on it…');
+        window.electronAPI.runTask(goal);
+      } else {
+        window.electronAPI.logVoice('PTT-empty', 'no speech captured');
+        showToast('Heard nothing. Try again.');
+      }
+    }
+
+    function cancelPtt() {
+      if (!pttListening) return;
+      pttListening = false;
+      if (pttSilenceTimer) { clearTimeout(pttSilenceTimer); pttSilenceTimer = null; }
+      pttBuffer = [];
+      avatarRing.classList.remove('task-listening');
+      setStatus('Cmd+Shift+S to ask Zek\'thar', true);
+      showToast('Task listen cancelled');
+      window.electronAPI.logVoice('PTT-cancel', '');
+    }
+
+    window.electronAPI.onTaskListenStart(() => startPtt());
+    window.electronAPI.onTaskListenCancel(() => cancelPtt());
+
+    // Auto-connect on load
+    setTimeout(connect, 500);
+  </script>
+</body>
+</html>

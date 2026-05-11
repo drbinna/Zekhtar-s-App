@@ -1,0 +1,16 @@
+# Secrets
+.env
+.env.local
+.env.production
+!.env.example
+
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor swap files
+*.swp
+*.swo

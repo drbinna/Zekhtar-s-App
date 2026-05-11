@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Zek'thar</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --accent: #00E5C8;
+      --accent-dim: rgba(0, 229, 200, 0.25);
+      --accent-soft: rgba(0, 229, 200, 0.08);
+      --bg: rgba(6, 8, 12, 0.96);
+      --text: #C9D6E3;
+      --text-dim: #5A6A7A;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+    }
+    .wrap {
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      border: 1px solid var(--accent-dim);
+      border-radius: 18px;
+      box-shadow:
+        0 18px 80px rgba(0, 0, 0, 0.55),
+        0 0 40px rgba(0, 229, 200, 0.08);
+      padding: 38px 36px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      transition: opacity 400ms ease, transform 400ms ease;
+      -webkit-app-region: drag;
+    }
+    .wrap.fading {
+      opacity: 0;
+      transform: scale(0.97);
+      pointer-events: none;
+    }
+    .preheader {
+      letter-spacing: 5px;
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .face {
+      width: 156px;
+      height: 156px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-dim);
+      background: var(--accent-soft);
+      overflow: hidden;
+      position: relative;
+      animation: pulse 2.6s ease-in-out infinite alternate;
+    }
+    .face img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      filter: saturate(1.05) contrast(1.02);
+    }
+    .face::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      box-shadow: inset 0 0 28px rgba(0, 229, 200, 0.18);
+      pointer-events: none;
+    }
+    @keyframes pulse {
+      from { box-shadow: 0 0 24px rgba(0,229,200,0.10); }
+      to   { box-shadow: 0 0 60px rgba(0,229,200,0.32); }
+    }
+    .name {
+      font-size: 30px;
+      font-weight: 300;
+      letter-spacing: 1.5px;
+      margin-top: 4px;
+    }
+    .subtitle {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 2px;
+      text-transform: lowercase;
+    }
+    .pitch {
+      max-width: 360px;
+      text-align: center;
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--text);
+      opacity: 0.88;
+      margin-top: 4px;
+    }
+    .shortcuts {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      padding: 14px 22px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.015);
+      font-size: 12.5px;
+      width: 280px;
+    }
+    .shortcuts .row {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .shortcuts .key {
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 10.5px;
+      color: var(--accent);
+      letter-spacing: 0.4px;
+      min-width: 116px;
+    }
+    .shortcuts .desc {
+      color: var(--text-dim);
+    }
+    .cta {
+      margin-top: 10px;
+      padding: 12px 32px;
+      background: var(--accent);
+      color: #061018;
+      border: none;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: lowercase;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      -webkit-app-region: no-drag;
+    }
+    .cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 28px rgba(0, 229, 200, 0.32);
+    }
+    .cta:active {
+      transform: translateY(0);
+    }
+    .footnote {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.6px;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <div class="preheader">first contact</div>
+    <div class="face"><img src="assets/zekthar-face.png" alt="Zek'thar" /></div>
+    <div class="name">Zek'thar</div>
+    <div class="subtitle">field observer &middot; veloris-9</div>
+    <div class="pitch">i can see your screen, talk with you, and act on it. show me something. let's see what we make of each other.</div>
+    <div class="shortcuts">
+      <div class="row"><span class="key">Cmd+Shift+S</span><span class="desc">ask about the screen</span></div>
+      <div class="row"><span class="key">Cmd+Shift+T</span><span class="desc">type a task</span></div>
+      <div class="row"><span class="key">Cmd+Shift+V</span><span class="desc">speak a task</span></div>
+    </div>
+    <button class="cta" id="cta">observe earth</button>
+    <div class="footnote">esc to dismiss</div>
+  </div>
+  <script>
+    const wrap = document.getElementById('wrap');
+    function dismiss() {
+      wrap.classList.add('fading');
+      setTimeout(() => window.welcomeAPI.dismiss(), 420);
+    }
+    document.getElementById('cta').addEventListener('click', dismiss);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') dismiss();
+    });
+  </script>
+</body>
+</html>

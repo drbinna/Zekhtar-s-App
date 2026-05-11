@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zek'thar — Alien Scientist Tutor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #06080C;
+      --surface: #0D1117;
+      --surface2: #151B25;
+      --border: #1E2A3A;
+      --text: #C9D6E3;
+      --text-dim: #5A6A7A;
+      --accent: #00E5C8;
+      --accent-dim: #00E5C830;
+      --glow: #00E5C815;
+      --danger: #FF4A6E;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Floating particles ── */
+    .particle {
+      position: fixed;
+      width: 2px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 50%;
+      opacity: 0.15;
+      pointer-events: none;
+      animation: drift linear infinite;
+    }
+    @keyframes drift {
+      0% { transform: translateY(0) translateX(0); opacity: 0; }
+      10% { opacity: 0.15; }
+      90% { opacity: 0.15; }
+      100% { transform: translateY(-100vh) translateX(40px); opacity: 0; }
+    }
+
+    /* ── Layout ── */
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: 64px 1fr;
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* ── Header ── */
+    .header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      z-index: 10;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 2px;
+    }
+    .header-sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: 'Space Mono', monospace;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background 0.3s;
+    }
+    .status-dot.connected { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .status-dot.error { background: var(--danger); }
+
+    /* ── Main area ── */
+    .main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ── Screen capture background ── */
+    .screen-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      display: none;
+    }
+    .screen-bg.active { display: block; }
+    .screen-bg video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.15;
+      filter: blur(2px) saturate(0.5);
+    }
+    .screen-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 30%, var(--bg) 80%);
+    }
+
+    /* ── Avatar container ── */
+    .avatar-area {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .avatar-ring {
+      width: 380px;
+      height: 380px;
+      border-radius: 50%;
+      border: 1.5px solid var(--accent-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      box-shadow: 0 0 80px var(--glow), inset 0 0 60px var(--glow);
+      transition: border-color 0.5s, box-shadow 0.5s;
+    }
+    .avatar-ring.speaking {
+      border-color: var(--accent);
+      box-shadow: 0 0 120px #00E5C825, inset 0 0 80px #00E5C815;
+    }
+
+    /* ── Close button on avatar ring ── */
+    .avatar-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--danger);
+      background: var(--surface);
+      color: var(--danger);
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+    .avatar-close:hover {
+      background: var(--danger);
+      color: var(--bg);
+    }
+    .avatar-close.active {
+      display: flex;
+    }
+    .avatar-close svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+    }
+    .avatar-ring video {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #000;
+    }
+    .avatar-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+    .avatar-placeholder .symbol {
+      font-size: 56px;
+      opacity: 0.4;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 32px;
+      position: relative;
+      z-index: 2;
+    }
+    .btn {
+      padding: 10px 24px;
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.5px;
+    }
+    .btn:hover { border-color: var(--accent-dim); background: var(--surface2); }
+    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn.primary {
+      background: var(--accent);
+      color: #06080C;
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+    .btn.primary:hover { background: #00CCAE; }
+    .btn.danger { border-color: var(--danger); color: var(--danger); }
+    .btn.danger:hover { background: #FF4A6E15; }
+    .btn.active { border-color: var(--accent); color: var(--accent); }
+
+    .btn-icon {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .transcript {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .transcript::-webkit-scrollbar { width: 4px; }
+    .transcript::-webkit-scrollbar-track { background: transparent; }
+    .transcript::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .msg {
+      font-size: 13px;
+      line-height: 1.6;
+      animation: msgIn 0.3s ease-out;
+    }
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .msg .role {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .msg.persona .role { color: var(--accent); }
+    .msg.user .role { color: var(--text-dim); }
+    .msg .text { color: var(--text); }
+
+    /* ── Screen capture badge ── */
+    .capture-badge {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid var(--accent-dim);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 11px;
+      color: var(--accent);
+      font-family: 'Space Mono', monospace;
+      letter-spacing: 1px;
+      z-index: 3;
+      display: none;
+      gap: 8px;
+      align-items: center;
+    }
+    .capture-badge.active { display: flex; }
+    .capture-badge .rec-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ── Loading state ── */
+    .loading-text {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Particles -->
+  <div id="particles"></div>
+
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="header-logo">ZEK'THAR</div>
+        <div class="header-sub">Xenobiologist · Veloris-9</div>
+      </div>
+      <div class="header-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Offline</span>
+      </div>
+    </header>
+
+    <!-- Main area -->
+    <main class="main">
+      <!-- Screen capture background -->
+      <div class="screen-bg" id="screenBg">
+        <video id="screenVideo" autoplay muted playsinline></video>
+      </div>
+
+      <!-- Avatar -->
+      <div class="avatar-area">
+        <div class="avatar-ring" id="avatarRing">
+          <!-- Close button -->
+          <button class="avatar-close" id="avatarClose" onclick="disconnectSession()">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <!-- Anam streams video here -->
+          <video id="avatarVideo" autoplay playsinline style="display:none;"></video>
+          <div class="avatar-placeholder" id="avatarPlaceholder">
+            <div class="symbol">◈</div>
+            <span>Awaiting connection</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button class="btn primary" id="btnConnect" onclick="connectSession()">
+          <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8a5 5 0 0 1 0 8"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
+          Connect
+        </button>
+        <button class="btn" id="btnScreen" onclick="toggleScreenCapture()" disabled>
+          <svg class="btn-icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Share screen
+        </button>
+        <button class="btn danger" id="btnDisconnect" onclick="disconnectSession()" style="display:none;">
+          <svg class="btn-icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          End
+        </button>
+      </div>
+
+      <!-- Screen capture badge -->
+      <div class="capture-badge" id="captureBadge">
+        <div class="rec-dot"></div>
+        SCREEN SHARED — Zek'thar can see your display
+      </div>
+    </main>
+
+    <!-- Sidebar transcript -->
+    <aside class="sidebar">
+      <div class="sidebar-header">Transmission log</div>
+      <div class="transcript" id="transcript">
+        <div class="msg persona">
+          <div class="role">Zek'thar</div>
+          <div class="text" style="color: var(--text-dim); font-style: italic;">
+            Connect to begin your session...
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ─────────────────────────────────────── -->
+  <!-- Scripts -->
+  <!-- ─────────────────────────────────────── -->
+  <script type="module">
+    import { createClient } from "https://esm.sh/@anam-ai/js-sdk@latest";
+    import { AnamEvent } from "https://esm.sh/@anam-ai/js-sdk@latest/dist/module/types";
+
+    // ── State ──
+    let anamClient = null;
+    let screenStream = null;
+    let captureInterval = null;
+    let isConnected = false;
+    let isScreenSharing = false;
+
+    // Make functions available globally for onclick handlers
+    window.connectSession = connectSession;
+    window.disconnectSession = disconnectSession;
+    window.toggleScreenCapture = toggleScreenCapture;
+
+    // ── Particles ──
+    const particleContainer = document.getElementById("particles");
+    for (let i = 0; i < 30; i++) {
+      const p = document.createElement("div");
+      p.className = "particle";
+      p.style.left = Math.random() * 100 + "%";
+      p.style.top = Math.random() * 100 + 100 + "%";
+      p.style.animationDuration = (8 + Math.random() * 12) + "s";
+      p.style.animationDelay = Math.random() * 10 + "s";
+      p.style.width = (1 + Math.random() * 2) + "px";
+      p.style.height = p.style.width;
+      particleContainer.appendChild(p);
+    }
+
+    // ── UI helpers ──
+    function setStatus(state, text) {
+      const dot = document.getElementById("statusDot");
+      const label = document.getElementById("statusText");
+      dot.className = "status-dot " + state;
+      label.textContent = text;
+    }
+
+    function addMessage(role, text) {
+      const transcript = document.getElementById("transcript");
+      const msg = document.createElement("div");
+      msg.className = "msg " + (role === "Zek'thar" ? "persona" : "user");
+      msg.innerHTML = `<div class="role">${role}</div><div class="text">${text}</div>`;
+      transcript.appendChild(msg);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    // ── Connect to Anam ──
+    async function connectSession() {
+      const btn = document.getElementById("btnConnect");
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner"></div> Connecting...';
+      setStatus("", "Connecting...");
+
+      try {
+        // 1. Get session token from our backend
+        const res = await fetch("/api/session", { method: "POST" });
+        if (!res.ok) throw new Error("Failed to get session token");
+        const { sessionToken } = await res.json();
+
+        // 2. Create Anam client (persona is now configured in the session token)
+        anamClient = createClient(sessionToken);
+
+        // 3. Listen for events
+        anamClient.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => {
+          console.log("Connected to Zek'thar");
+          isConnected = true;
+          setStatus("connected", "Connected");
+
+          // Show/hide UI
+          document.getElementById("avatarPlaceholder").style.display = "none";
+          document.getElementById("avatarVideo").style.display = "block";
+          document.getElementById("btnConnect").style.display = "none";
+          document.getElementById("btnDisconnect").style.display = "flex";
+          document.getElementById("btnScreen").disabled = false;
+          document.getElementById("avatarClose").classList.add("active");
+
+          // Clear placeholder transcript
+          document.getElementById("transcript").innerHTML = "";
+        });
+
+        anamClient.addListener(AnamEvent.CONNECTION_CLOSED, () => {
+          console.log("Disconnected");
+          handleDisconnect();
+        });
+
+        anamClient.addListener(AnamEvent.MESSAGE_HISTORY_UPDATED, (messages) => {
+          // Rebuild transcript from message history
+          const transcript = document.getElementById("transcript");
+          transcript.innerHTML = "";
+          messages.forEach((m) => {
+            const role = m.role === "persona" ? "Zek'thar" : "You";
+            addMessage(role, m.content);
+          });
+        });
+
+        // 4. Stream to video element
+        await anamClient.streamToVideoElement("avatarVideo");
+
+      } catch (err) {
+        console.error("Connection failed:", err);
+        setStatus("error", "Connection failed");
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8a5 5 0 0 1 0 8"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
+          Retry
+        `;
+      }
+    }
+
+    // ── Disconnect ──
+    function disconnectSession() {
+      if (anamClient) {
+        anamClient.stopStreaming();
+        anamClient = null;
+      }
+      stopScreenCapture();
+      handleDisconnect();
+    }
+
+    function handleDisconnect() {
+      isConnected = false;
+      setStatus("", "Offline");
+
+      document.getElementById("avatarPlaceholder").style.display = "flex";
+      document.getElementById("avatarVideo").style.display = "none";
+      document.getElementById("btnConnect").style.display = "flex";
+      document.getElementById("btnConnect").disabled = false;
+      document.getElementById("btnConnect").innerHTML = `
+        <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8a5 5 0 0 1 0 8"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
+        Connect
+      `;
+      document.getElementById("btnDisconnect").style.display = "none";
+      document.getElementById("btnScreen").disabled = true;
+      document.getElementById("avatarClose").classList.remove("active");
+    }
+
+    // ── Screen Capture ──
+    async function toggleScreenCapture() {
+      if (isScreenSharing) {
+        stopScreenCapture();
+      } else {
+        await startScreenCapture();
+      }
+    }
+
+    async function startScreenCapture() {
+      try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: "always" },
+          audio: false,
+        });
+
+        // Show the screen as a faded background
+        const screenVideo = document.getElementById("screenVideo");
+        screenVideo.srcObject = screenStream;
+        document.getElementById("screenBg").classList.add("active");
+        document.getElementById("captureBadge").classList.add("active");
+        document.getElementById("btnScreen").classList.add("active");
+        document.getElementById("btnScreen").innerHTML = `
+          <svg class="btn-icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Stop sharing
+        `;
+        isScreenSharing = true;
+
+        // Handle user stopping share via browser UI
+        screenStream.getVideoTracks()[0].onended = () => stopScreenCapture();
+
+        // Capture a frame every 5 seconds and inject as context
+        captureInterval = setInterval(() => captureAndSendFrame(), 5000);
+
+        // Send first frame immediately
+        setTimeout(() => captureAndSendFrame(), 500);
+
+      } catch (err) {
+        console.error("Screen capture failed:", err);
+      }
+    }
+
+    function stopScreenCapture() {
+      if (screenStream) {
+        screenStream.getTracks().forEach((t) => t.stop());
+        screenStream = null;
+      }
+      if (captureInterval) {
+        clearInterval(captureInterval);
+        captureInterval = null;
+      }
+      document.getElementById("screenBg").classList.remove("active");
+      document.getElementById("captureBadge").classList.remove("active");
+      document.getElementById("btnScreen").classList.remove("active");
+      document.getElementById("btnScreen").innerHTML = `
+        <svg class="btn-icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Share screen
+      `;
+      isScreenSharing = false;
+    }
+
+    function captureAndSendFrame() {
+      if (!anamClient || !screenStream || !isConnected) return;
+
+      const video = document.getElementById("screenVideo");
+      if (video.videoWidth === 0) return;
+
+      const canvas = document.createElement("canvas");
+      // Downscale for efficiency
+      const scale = 0.4;
+      canvas.width = video.videoWidth * scale;
+      canvas.height = video.videoHeight * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const description = describeScreenContext(canvas);
+
+      // Inject as silent context — Zek'thar will have this info
+      // for the next time the user speaks
+      try {
+        anamClient.addContext(
+          `[SCREEN OBSERVATION] You are currently seeing the student's screen. ${description} React to what you see only if the student asks about it or if something is particularly interesting from your alien perspective. Do not describe the screen unprompted every time — weave observations naturally into the conversation.`
+        );
+        console.log("Screen context injected");
+      } catch (e) {
+        // addContext may not be available on all SDK versions
+        // Fall back to talk command as a whisper
+        console.log("addContext not available, using talk command");
+        anamClient.talk(
+          `[INTERNAL CONTEXT — do not speak this aloud] You can see the student's screen. ${description}`
+        );
+      }
+    }
+
+    function describeScreenContext(canvas) {
+      // In a production app, you'd send this frame to a vision model
+      // (Claude, GPT-4o) for a description. For the hackathon demo,
+      // we send a generic prompt and let the LLM know a screenshot
+      // was captured. To make this truly multimodal, add a /api/describe
+      // endpoint that sends the base64 frame to Claude Vision.
+      return "A screenshot was just captured from the student's display. The student may ask you about what they're looking at. Be ready to discuss it with alien curiosity.";
+    }
+  </script>
+</body>
+</html>

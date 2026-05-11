@@ -1,0 +1,20 @@
+{
+  "name": "zekthar-desktop",
+  "version": "1.0.0",
+  "description": "Zek'thar - AI Desktop Companion that can see and interact with your screen",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"node ../server.js\" \"wait-on http://localhost:3000 && electron .\"",
+    "postinstall": "electron-rebuild"
+  },
+  "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.2"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
+    "concurrently": "^8.2.2",
+    "electron": "^37.0.0",
+    "wait-on": "^7.2.0"
+  }
+}
