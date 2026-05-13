@@ -1,0 +1,87 @@
+name: Release macOS
+
+on:
+  push:
+    tags:
+      - "v*"  # Trigger on version tags like v1.0.0, v1.2.3-beta
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build without publishing (dry run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # Needed to create GitHub Releases
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & sign & notarize (${{ matrix.arch }})
+        env:
+          # ── Code signing ──
+          # Base64-encoded .p12 certificate (Developer ID Application)
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+          # ── Notarization ──
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+        run: |
+          npx electron-builder --mac dmg zip --${{ matrix.arch }} \
+            --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zekthar-macos-${{ matrix.arch }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/*.dmg
+            artifacts/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
