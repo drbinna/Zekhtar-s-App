@@ -34,8 +34,8 @@ if (fs.existsSync(userEnvPath)) {
   console.warn('[boot] no .env found — set API keys via', userEnvPath);
 }
 
-const SERVER_PORT = process.env.PORT || 3000;
-const SERVER_URL = process.env.ZEKTHAR_SERVER_URL || `http://localhost:${SERVER_PORT}`;
+const SERVER_PORT = parseInt(process.env.PORT, 10) || 3000;
+let SERVER_URL = process.env.ZEKTHAR_SERVER_URL || `http://localhost:${SERVER_PORT}`;
 const HISTORY_LIMIT = 20; // last 10 exchanges (user+assistant)
 // Flip this on once Zek'thar can actually click. For now the pointer is
 // decorative and tends to stick around after a capture.
@@ -492,6 +492,8 @@ async function chat(transcript) {
 // IPC
 ipcMain.handle('chat', async (_e, transcript) => chat(transcript));
 
+ipcMain.handle('get-server-url', () => SERVER_URL);
+
 ipcMain.handle('get-session-token', async () => {
   try {
     const response = await fetch(`${SERVER_URL}/api/session`, {
@@ -564,8 +566,9 @@ app.whenReady().then(async () => {
   if (!process.env.ZEKTHAR_SERVER_URL) {
     try {
       const server = require(path.join(APP_ROOT, 'server.js'));
-      await server.start(SERVER_PORT);
-      console.log('[boot] embedded server started on port', SERVER_PORT);
+      const { port: actualPort } = await server.start(SERVER_PORT);
+      SERVER_URL = `http://localhost:${actualPort}`;
+      console.log('[boot] embedded server started on port', actualPort);
     } catch (err) {
       console.error('[boot] failed to start embedded server:', err);
     }

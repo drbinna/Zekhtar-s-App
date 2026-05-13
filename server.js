@@ -258,12 +258,29 @@ app.post("/api/voice/intent", async (req, res) => {
 });
 
 function start(port) {
-  const p = port || PORT;
-  return new Promise((resolve) => {
-    const server = app.listen(p, '127.0.0.1', () => {
-      console.log(`\n  ✦ Zek'thar is ready at http://localhost:${p}\n`);
-      resolve(server);
-    });
+  const requested = port || PORT;
+  return new Promise((resolve, reject) => {
+    const tryListen = (p, attemptsLeft) => {
+      const server = app.listen(p, '127.0.0.1');
+      server.once('listening', () => {
+        const actualPort = server.address().port;
+        console.log(`\n  ✦ Zek'thar is ready at http://localhost:${actualPort}\n`);
+        resolve({ server, port: actualPort });
+      });
+      server.once('error', (err) => {
+        if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+          console.warn(`[server] port ${p} in use, trying ${p + 1}`);
+          tryListen(p + 1, attemptsLeft - 1);
+        } else if (err.code === 'EADDRINUSE') {
+          // Final fallback: let OS pick a free port
+          console.warn(`[server] all preferred ports busy, letting OS pick`);
+          tryListen(0, 0);
+        } else {
+          reject(err);
+        }
+      });
+    };
+    tryListen(requested, 10);
   });
 }
 

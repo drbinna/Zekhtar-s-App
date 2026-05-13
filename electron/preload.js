@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Server URL (may differ from default if port 3000 was busy)
+  getServerUrl: () => ipcRenderer.invoke('get-server-url'),
+
   // Anam session token (renderer fetches via main → server)
   getSessionToken: () => ipcRenderer.invoke('get-session-token'),
 

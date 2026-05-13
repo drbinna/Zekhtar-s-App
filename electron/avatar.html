@@ -303,9 +303,21 @@
     // the LLM call so most chat never hits the network.
     const NAME_HINT_RE = /\bzek/i;
 
+    let SERVER_URL_CACHE = null;
+    async function getServerUrl() {
+      if (SERVER_URL_CACHE) return SERVER_URL_CACHE;
+      try {
+        SERVER_URL_CACHE = await window.electronAPI.getServerUrl();
+      } catch {
+        SERVER_URL_CACHE = 'http://localhost:3000';
+      }
+      return SERVER_URL_CACHE;
+    }
+
     async function classifyIntent(transcript) {
       try {
-        const res = await fetch('http://localhost:3000/api/voice/intent', {
+        const baseUrl = await getServerUrl();
+        const res = await fetch(`${baseUrl}/api/voice/intent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ transcript }),
