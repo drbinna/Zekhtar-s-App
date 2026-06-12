@@ -38,6 +38,12 @@ jobs:
       # latest-mac.yml is generated covering all artifacts. Separate per-arch
       # jobs each write their own latest-mac.yml and one clobbers the other,
       # which silently breaks electron-updater for half your users.
+      #
+      # Signing and notarization are skipped gracefully when the secrets
+      # aren't configured (repo Settings > Secrets and variables > Actions):
+      #   CSC_LINK + CSC_KEY_PASSWORD            -> code signing
+      #   APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD
+      #   + APPLE_TEAM_ID                        -> notarization
       - name: Build & sign & notarize (arm64 + x64)
         env:
           # ── Code signing ──
@@ -49,8 +55,17 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          EXTRA_ARGS=""
+          if [ -z "$CSC_LINK" ]; then
+            echo "::warning::CSC_LINK secret not set — building UNSIGNED"
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::warning::Apple notarization secrets not set — skipping notarization"
+            EXTRA_ARGS="-c.mac.notarize=false"
+          fi
           npx electron-builder --mac dmg zip --arm64 --x64 \
-            --publish never
+            --publish never $EXTRA_ARGS
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
