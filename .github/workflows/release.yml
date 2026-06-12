@@ -56,12 +56,19 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           EXTRA_ARGS=""
-          if [ -z "$CSC_LINK" ]; then
-            echo "::warning::CSC_LINK secret not set — building UNSIGNED"
+          SIGNED=true
+          # Signing needs BOTH the cert and its password. A half-configured or
+          # malformed CSC_LINK makes electron-builder hard-fail ("not a file"),
+          # so unset it entirely when we can't sign properly.
+          if [ -z "$CSC_LINK" ] || [ -z "$CSC_KEY_PASSWORD" ]; then
+            echo "::warning::CSC_LINK and/or CSC_KEY_PASSWORD secret not set — building UNSIGNED"
+            unset CSC_LINK CSC_KEY_PASSWORD
             export CSC_IDENTITY_AUTO_DISCOVERY=false
+            SIGNED=false
           fi
-          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
-            echo "::warning::Apple notarization secrets not set — skipping notarization"
+          # Notarization requires a signed app and full Apple credentials.
+          if [ "$SIGNED" = false ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::warning::Skipping notarization (unsigned build or Apple secrets not set)"
             EXTRA_ARGS="-c.mac.notarize=false"
           fi
           npx electron-builder --mac dmg zip --arm64 --x64 \
