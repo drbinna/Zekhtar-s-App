@@ -8,7 +8,28 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// ─────────────────────────────────────────────
+// Claude client — runs on AWS Bedrock when AWS_BEDROCK_API_KEY is set,
+// otherwise falls back to the direct Anthropic API for local dev.
+// Bedrock serves the same Messages API at /anthropic, so the SDK is unchanged;
+// only the base URL, key, and model IDs (anthropic.* prefix) differ.
+// ─────────────────────────────────────────────
+const USE_BEDROCK = !!process.env.AWS_BEDROCK_API_KEY;
+const AWS_REGION = process.env.AWS_REGION || "us-east-1";
+
+const anthropic = USE_BEDROCK
+  ? new Anthropic({
+      baseURL: `https://bedrock-mantle.${AWS_REGION}.api.aws/anthropic`,
+      apiKey: process.env.AWS_BEDROCK_API_KEY,
+    })
+  : new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Primary model: Claude Opus 4.8 (screen vision + task loop).
+// Intent classifier stays on Haiku — it's a ~100-token yes/no router.
+const MODEL_PRIMARY = USE_BEDROCK ? "anthropic.claude-opus-4-8" : "claude-opus-4-8";
+const MODEL_FAST = USE_BEDROCK ? "anthropic.claude-haiku-4-5" : "claude-haiku-4-5";
+
+console.log(`[claude] provider=${USE_BEDROCK ? `bedrock (${AWS_REGION})` : "anthropic"} primary=${MODEL_PRIMARY}`);
 
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
@@ -110,7 +131,7 @@ app.post("/api/vision/chat", async (req, res) => {
     ];
 
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: MODEL_PRIMARY,
       max_tokens: 400,
       system: SYSTEM_PROMPT,
       messages,
@@ -163,7 +184,7 @@ app.post("/api/task/step", async (req, res) => {
     }
 
     const response = await anthropic.beta.messages.create({
-      model: "claude-sonnet-4-6",
+      model: MODEL_PRIMARY,
       max_tokens: 1024,
       betas: ["computer-use-2025-11-24"],
       tools: [
@@ -234,7 +255,7 @@ app.post("/api/voice/intent", async (req, res) => {
       return res.json({ is_task: false, goal: "" });
     }
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 100,
       system: INTENT_SYSTEM_PROMPT,
       messages: [{ role: "user", content: transcript.trim() }],

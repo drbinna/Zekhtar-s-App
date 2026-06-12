@@ -19,11 +19,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 30
-
-    strategy:
-      matrix:
-        arch: [arm64, x64]
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -38,10 +34,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build & sign & notarize (${{ matrix.arch }})
+      # Both architectures in ONE electron-builder invocation so a single
+      # latest-mac.yml is generated covering all artifacts. Separate per-arch
+      # jobs each write their own latest-mac.yml and one clobbers the other,
+      # which silently breaks electron-updater for half your users.
+      - name: Build & sign & notarize (arm64 + x64)
         env:
           # ── Code signing ──
-          # Base64-encoded .p12 certificate (Developer ID Application)
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
@@ -49,18 +48,19 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
         run: |
-          npx electron-builder --mac dmg zip --${{ matrix.arch }} \
+          npx electron-builder --mac dmg zip --arm64 --x64 \
             --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zekthar-macos-${{ matrix.arch }}
+          name: zekthar-macos
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/*.blockmap
+            dist/latest*.yml
           if-no-files-found: error
 
   release:
@@ -75,13 +75,18 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # draft: false — releases (and their download links) go live as soon as
+      # the build finishes. latest*.yml must be attached or electron-updater
+      # can't discover new versions.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: false
           generate_release_notes: true
           files: |
             artifacts/*.dmg
             artifacts/*.zip
+            artifacts/*.blockmap
+            artifacts/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

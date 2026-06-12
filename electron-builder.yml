@@ -12,7 +12,9 @@ files:
   - "server.js"
   - "public/**/*"
   - "package.json"
-  - ".env"
+  # NOTE: .env is intentionally NOT bundled — it contains live API keys and the
+  # .dmg is publicly downloadable. The app loads keys from the user's data dir
+  # (~/Library/Application Support/Zekthar/.env) — see main.js env loading.
   - "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,README,readme}"
   - "!**/node_modules/.cache"
   - "!**/*.map"
@@ -66,7 +68,7 @@ dmg:
 publish:
   - provider: github
     owner: drbinna
-    repo: Void
+    repo: Zekhtar-s-App
     releaseType: release
 
 # Extra resources that are unpacked outside the asar (needed for native modules).

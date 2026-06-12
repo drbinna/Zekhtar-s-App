@@ -9,10 +9,12 @@
     :root {
       --accent: #00E5C8;
       --accent-dim: rgba(0, 229, 200, 0.25);
-      --accent-soft: rgba(0, 229, 200, 0.08);
-      --bg: rgba(6, 8, 12, 0.96);
+      --accent-soft: rgba(0, 229, 200, 0.07);
+      --bg: rgba(6, 8, 12, 0.97);
       --text: #C9D6E3;
       --text-dim: #5A6A7A;
+      --key-bg: rgba(0, 229, 200, 0.06);
+      --key-border: rgba(0, 229, 200, 0.22);
     }
     html, body {
       width: 100%;
@@ -21,22 +23,29 @@
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .wrap {
       width: 100%;
       height: 100%;
+      max-width: 480px;
+      max-height: 540px;
       background: var(--bg);
       border: 1px solid var(--accent-dim);
       border-radius: 18px;
       box-shadow:
         0 18px 80px rgba(0, 0, 0, 0.55),
         0 0 40px rgba(0, 229, 200, 0.08);
-      padding: 38px 36px;
+      padding: 34px 36px 28px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 18px;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
       transition: opacity 400ms ease, transform 400ms ease;
       -webkit-app-region: drag;
     }
@@ -45,91 +54,144 @@
       transform: scale(0.97);
       pointer-events: none;
     }
+
+    /* ── drifting starfield, far behind everything ── */
+    .stars {
+      position: absolute;
+      inset: -60px;
+      background-image:
+        radial-gradient(1px 1px at 12% 22%, rgba(201,214,227,0.5) 50%, transparent 51%),
+        radial-gradient(1px 1px at 78% 14%, rgba(0,229,200,0.45) 50%, transparent 51%),
+        radial-gradient(1.5px 1.5px at 55% 38%, rgba(201,214,227,0.32) 50%, transparent 51%),
+        radial-gradient(1px 1px at 30% 64%, rgba(201,214,227,0.4) 50%, transparent 51%),
+        radial-gradient(1px 1px at 88% 56%, rgba(0,229,200,0.35) 50%, transparent 51%),
+        radial-gradient(1.5px 1.5px at 64% 82%, rgba(201,214,227,0.28) 50%, transparent 51%),
+        radial-gradient(1px 1px at 18% 88%, rgba(0,229,200,0.3) 50%, transparent 51%),
+        radial-gradient(1px 1px at 42% 8%, rgba(201,214,227,0.35) 50%, transparent 51%);
+      animation: drift 90s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes drift {
+      from { transform: translate3d(0, 0, 0); }
+      to   { transform: translate3d(-40px, 24px, 0); }
+    }
+
+    /* ── staggered arrival ── */
+    .arrive {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: arrive 600ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+    }
+    .d1 { animation-delay: 80ms; }
+    .d2 { animation-delay: 200ms; }
+    .d3 { animation-delay: 340ms; }
+    .d4 { animation-delay: 460ms; }
+    .d5 { animation-delay: 580ms; }
+    .d6 { animation-delay: 700ms; }
+    .d7 { animation-delay: 820ms; }
+    @keyframes arrive {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .preheader {
-      letter-spacing: 5px;
+      letter-spacing: 6px;
       font-size: 10px;
       text-transform: uppercase;
       color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    .face {
-      width: 156px;
-      height: 156px;
-      border-radius: 50%;
-      border: 2px solid var(--accent-dim);
-      background: var(--accent-soft);
-      overflow: hidden;
-      position: relative;
-      animation: pulse 2.6s ease-in-out infinite alternate;
-    }
-    .face img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      filter: saturate(1.05) contrast(1.02);
-    }
-    .face::after {
+    .preheader::before, .preheader::after {
       content: '';
-      position: absolute;
-      inset: 0;
+      width: 26px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-dim));
+    }
+    .preheader::after {
+      background: linear-gradient(90deg, var(--accent-dim), transparent);
+    }
+
+    /* ── Zek'thar, drawn — no asset required ── */
+    .face {
+      width: 128px;
+      height: 128px;
       border-radius: 50%;
-      box-shadow: inset 0 0 28px rgba(0, 229, 200, 0.18);
-      pointer-events: none;
+      border: 1.5px solid var(--accent-dim);
+      background:
+        radial-gradient(ellipse at 50% 30%, rgba(0,229,200,0.13), transparent 65%),
+        var(--accent-soft);
+      position: relative;
+      animation: pulse 2.8s ease-in-out infinite alternate;
     }
+    .face svg { width: 100%; height: 100%; display: block; }
     @keyframes pulse {
-      from { box-shadow: 0 0 24px rgba(0,229,200,0.10); }
-      to   { box-shadow: 0 0 60px rgba(0,229,200,0.32); }
+      from { box-shadow: 0 0 22px rgba(0,229,200,0.10); }
+      to   { box-shadow: 0 0 52px rgba(0,229,200,0.30); }
     }
+    /* slow blink: eyes scale shut briefly */
+    .eye { transform-origin: center; animation: blink 5.2s infinite; }
+    .eye.right { animation-delay: 120ms; }
+    @keyframes blink {
+      0%, 92%, 100% { transform: scaleY(1); }
+      95%, 97%      { transform: scaleY(0.06); }
+    }
+
     .name {
       font-size: 30px;
       font-weight: 300;
-      letter-spacing: 1.5px;
-      margin-top: 4px;
+      letter-spacing: 2px;
     }
     .subtitle {
       font-size: 11px;
       color: var(--text-dim);
-      letter-spacing: 2px;
+      letter-spacing: 2.5px;
       text-transform: lowercase;
+      margin-top: -6px;
     }
     .pitch {
-      max-width: 360px;
+      max-width: 350px;
       text-align: center;
       font-size: 13.5px;
       line-height: 1.55;
-      color: var(--text);
       opacity: 0.88;
-      margin-top: 4px;
     }
+
     .shortcuts {
       display: flex;
       flex-direction: column;
-      gap: 9px;
-      padding: 14px 22px;
+      gap: 8px;
+      padding: 13px 18px;
       border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
+      border-radius: 12px;
       background: rgba(255, 255, 255, 0.015);
       font-size: 12.5px;
-      width: 280px;
+      width: 300px;
     }
     .shortcuts .row {
       display: flex;
-      gap: 14px;
+      gap: 12px;
       align-items: center;
     }
-    .shortcuts .key {
+    .keys { display: flex; gap: 4px; min-width: 118px; }
+    kbd {
       font-family: 'SF Mono', 'Menlo', monospace;
       font-size: 10.5px;
+      line-height: 1;
       color: var(--accent);
-      letter-spacing: 0.4px;
-      min-width: 116px;
+      background: var(--key-bg);
+      border: 1px solid var(--key-border);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 4px 6px;
+      min-width: 22px;
+      text-align: center;
     }
-    .shortcuts .desc {
-      color: var(--text-dim);
-    }
+    .shortcuts .desc { color: var(--text-dim); }
+
     .cta {
-      margin-top: 10px;
-      padding: 12px 32px;
+      margin-top: 6px;
+      padding: 12px 34px;
       background: var(--accent);
       color: #061018;
       border: none;
@@ -146,37 +208,70 @@
       transform: translateY(-1px);
       box-shadow: 0 10px 28px rgba(0, 229, 200, 0.32);
     }
-    .cta:active {
-      transform: translateY(0);
+    .cta:active { transform: translateY(0); }
+    .cta:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
     }
     .footnote {
       font-size: 10px;
       color: var(--text-dim);
       letter-spacing: 0.6px;
-      margin-top: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stars, .face, .eye { animation: none; }
+      .arrive { animation: none; opacity: 1; transform: none; }
+      .wrap { transition: opacity 200ms ease; }
     }
   </style>
 </head>
 <body>
   <div class="wrap" id="wrap">
-    <div class="preheader">first contact</div>
-    <div class="face"><img src="assets/zekthar-face.png" alt="Zek'thar" /></div>
-    <div class="name">Zek'thar</div>
-    <div class="subtitle">field observer &middot; veloris-9</div>
-    <div class="pitch">i can see your screen, talk with you, and act on it. show me something. let's see what we make of each other.</div>
-    <div class="shortcuts">
-      <div class="row"><span class="key">Cmd+Shift+S</span><span class="desc">ask about the screen</span></div>
-      <div class="row"><span class="key">Cmd+Shift+T</span><span class="desc">type a task</span></div>
-      <div class="row"><span class="key">Cmd+Shift+V</span><span class="desc">speak a task</span></div>
+    <div class="stars"></div>
+    <div class="preheader arrive d1">first contact</div>
+    <div class="face arrive d2" aria-hidden="true">
+      <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+        <!-- cranium -->
+        <path d="M64 18 C40 18 26 38 26 60 C26 82 42 100 54 106 L54 112 C54 116 58 118 64 118 C70 118 74 116 74 112 L74 106 C86 100 102 82 102 60 C102 38 88 18 64 18 Z"
+              fill="rgba(0,229,200,0.10)" stroke="#00E5C8" stroke-opacity="0.55" stroke-width="1.5"/>
+        <!-- brow ridges -->
+        <path d="M38 52 Q47 47 56 51" fill="none" stroke="#00E5C8" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M72 51 Q81 47 90 52" fill="none" stroke="#00E5C8" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+        <!-- eyes -->
+        <g class="eye left">
+          <ellipse cx="47" cy="63" rx="10" ry="13" fill="#061018" stroke="#00E5C8" stroke-opacity="0.7" stroke-width="1.5" transform="rotate(-14 47 63)"/>
+          <ellipse cx="49" cy="60" rx="2.4" ry="3.2" fill="#00E5C8" opacity="0.9" transform="rotate(-14 49 60)"/>
+        </g>
+        <g class="eye right">
+          <ellipse cx="81" cy="63" rx="10" ry="13" fill="#061018" stroke="#00E5C8" stroke-opacity="0.7" stroke-width="1.5" transform="rotate(14 81 63)"/>
+          <ellipse cx="79" cy="60" rx="2.4" ry="3.2" fill="#00E5C8" opacity="0.9" transform="rotate(14 79 60)"/>
+        </g>
+        <!-- nostril dots -->
+        <circle cx="60" cy="84" r="1.3" fill="#00E5C8" opacity="0.45"/>
+        <circle cx="68" cy="84" r="1.3" fill="#00E5C8" opacity="0.45"/>
+        <!-- small calm mouth -->
+        <path d="M56 95 Q64 99 72 95" fill="none" stroke="#00E5C8" stroke-opacity="0.5" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
     </div>
-    <button class="cta" id="cta">observe earth</button>
-    <div class="footnote">esc to dismiss</div>
+    <div class="name arrive d3">Zek'thar</div>
+    <div class="subtitle arrive d3">field observer &middot; veloris-9</div>
+    <div class="pitch arrive d4">i can see your screen, talk with you, and act on it. show me something. let's see what we make of each other.</div>
+    <div class="shortcuts arrive d5">
+      <div class="row"><span class="keys"><kbd>&#8984;</kbd><kbd>&#8679;</kbd><kbd>S</kbd></span><span class="desc">ask about the screen</span></div>
+      <div class="row"><span class="keys"><kbd>&#8984;</kbd><kbd>&#8679;</kbd><kbd>T</kbd></span><span class="desc">type a task</span></div>
+      <div class="row"><span class="keys"><kbd>&#8984;</kbd><kbd>&#8679;</kbd><kbd>V</kbd></span><span class="desc">speak a task</span></div>
+    </div>
+    <button class="cta arrive d6" id="cta">observe earth</button>
+    <div class="footnote arrive d7">esc to dismiss</div>
   </div>
   <script>
     const wrap = document.getElementById('wrap');
     function dismiss() {
       wrap.classList.add('fading');
-      setTimeout(() => window.welcomeAPI.dismiss(), 420);
+      setTimeout(() => {
+        if (window.welcomeAPI && window.welcomeAPI.dismiss) window.welcomeAPI.dismiss();
+      }, 420);
     }
     document.getElementById('cta').addEventListener('click', dismiss);
     window.addEventListener('keydown', (e) => {
