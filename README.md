@@ -20,7 +20,7 @@ Edit `.env` and add your Anam API key from [lab.anam.ai/api-keys](https://lab.an
 
 ```
 ANAM_API_KEY=your-actual-api-key
-PERSONA_ID=bda79d51-bd4c-4a3f-9192-7ee2499f7bad
+PERSONA_ID=64b77498-acea-45f3-b788-93d9ff7db246
 ```
 
 ### 3. Run
