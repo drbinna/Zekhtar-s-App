@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Window dragging
   moveWindow: (deltaX, deltaY) => ipcRenderer.send('move-window', { deltaX, deltaY }),
 
+  // Kick off a background screenshot the moment a task-ish utterance is
+  // detected; the result is cached and consumed by the next runTask seed step.
+  prefetchSnapshot: () => ipcRenderer.send('snapshot:prefetch'),
+
   // Task mode (autonomous screen interaction).
   runTask: (goal) => ipcRenderer.invoke('task:run', goal),
   abortTask: () => ipcRenderer.send('task:abort'),

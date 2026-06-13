@@ -237,6 +237,15 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Autonomous mode: hide chrome — only the avatar and a single
+       on/off toggle remain. Status text, toasts, the close-X corner
+       button, and the capture/mic buttons are all suppressed. */
+    .status,
+    .toast,
+    .close-btn,
+    #btnCapture,
+    #btnMic { display: none !important; }
   </style>
 </head>
 <body>
@@ -263,7 +272,7 @@
     <div class="status" id="status">Press Cmd+Shift+Z to hide</div>
 
     <div class="controls">
-      <button class="btn" id="btnConnect" title="Connect">
+      <button class="btn" id="btnConnect" title="Turn Zek'thar on / off">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       </button>
       <button class="btn" id="btnCapture" title="Capture Screen (Cmd+Shift+S)">
@@ -406,6 +415,9 @@
 
             // PTT mode: every utterance is task input, no classifier needed.
             if (pttListening) {
+              if (!pttHasChunk) {
+                try { window.electronAPI.prefetchSnapshot(); } catch (_) {}
+              }
               pttBuffer.push(text);
               try { anamClient.interruptPersona(); } catch (_) {}
               window.electronAPI.logVoice('PTT-chunk', text);
@@ -413,7 +425,12 @@
               continue;
             }
 
-            // Casual voice: classifier decides.
+            // Casual voice: classifier decides. Prefetch a screenshot in
+            // parallel if the wake-word is present — hides capture latency
+            // behind the classifier round-trip.
+            if (NAME_HINT_RE.test(text)) {
+              try { window.electronAPI.prefetchSnapshot(); } catch (_) {}
+            }
             window.electronAPI.logVoice('classifying', text);
             classifyIntent(text).then(({ is_task, goal }) => {
               if (is_task && goal) {
@@ -515,11 +532,13 @@
       avatarRing.classList.remove('listening');
     });
 
-    // Listen for speech from global Cmd+Shift+S shortcut
+    // Listen for speech pushed from main (task narration, "on it.", etc).
+    // Interrupt any in-flight persona reply first so task narration plays
+    // clean instead of trailing behind a chat-mode hedge.
     window.electronAPI.onSpeech((speech) => {
       if (speech && anamClient && isConnected) {
+        try { anamClient.interruptPersona(); } catch (_) {}
         anamClient.talk(speech);
-        showToast('Zek\'thar is responding...');
       }
     });
 

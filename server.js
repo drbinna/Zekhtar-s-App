@@ -133,7 +133,9 @@ app.post("/api/vision/chat", async (req, res) => {
     const response = await anthropic.messages.create({
       model: MODEL_PRIMARY,
       max_tokens: 400,
-      system: SYSTEM_PROMPT,
+      system: [
+        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      ],
       messages,
     });
 
@@ -176,14 +178,23 @@ stop and reply with plain text (no tool call) when:
 never re-do an action that just succeeded. never click in the same place twice in a row unless something changed on screen. when you don't know where something is, look first (screenshot) before clicking. budget your steps — about a dozen is the most you'll get; if you're not most of the way there by step 8, reconsider whether you're stuck and bail.`;
 
 app.post("/api/task/step", async (req, res) => {
+  const { conversation = [], displayWidth, displayHeight } = req.body;
+
+  if (!displayWidth || !displayHeight) {
+    return res.status(400).json({ error: "displayWidth and displayHeight required" });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
   try {
-    const { conversation = [], displayWidth, displayHeight } = req.body;
-
-    if (!displayWidth || !displayHeight) {
-      return res.status(400).json({ error: "displayWidth and displayHeight required" });
-    }
-
-    const response = await anthropic.beta.messages.create({
+    const stream = anthropic.beta.messages.stream({
       model: MODEL_PRIMARY,
       max_tokens: 1024,
       betas: ["computer-use-2025-11-24"],
@@ -200,17 +211,49 @@ app.post("/api/task/step", async (req, res) => {
           name: "str_replace_based_edit_tool",
         },
       ],
-      system: TASK_SYSTEM_PROMPT,
+      system: [
+        { type: "text", text: TASK_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      ],
       messages: conversation,
     });
 
-    res.json({
-      content: response.content,
-      stopReason: response.stop_reason,
-    });
+    let currentBlock = null;
+    let textBuf = "";
+    let jsonBuf = "";
+    let stopReason = null;
+    for await (const event of stream) {
+      if (event.type === "content_block_start") {
+        currentBlock = event.content_block;
+        textBuf = currentBlock?.type === "text" ? (currentBlock.text || "") : "";
+        jsonBuf = "";
+      } else if (event.type === "content_block_delta") {
+        if (event.delta.type === "text_delta") textBuf += event.delta.text;
+        else if (event.delta.type === "input_json_delta") jsonBuf += event.delta.partial_json;
+      } else if (event.type === "content_block_stop") {
+        if (currentBlock?.type === "text") {
+          send("text", { text: textBuf });
+        } else if (currentBlock?.type === "tool_use") {
+          let input = currentBlock.input || {};
+          if (jsonBuf) {
+            try { input = JSON.parse(jsonBuf); } catch {}
+          }
+          send("tool_use", { id: currentBlock.id, name: currentBlock.name, input });
+        }
+        currentBlock = null;
+        textBuf = "";
+        jsonBuf = "";
+      } else if (event.type === "message_delta" && event.delta?.stop_reason) {
+        stopReason = event.delta.stop_reason;
+      }
+    }
+    send("done", { stopReason });
+    res.end();
   } catch (err) {
     console.error("task/step failed:", err);
-    res.status(500).json({ error: err.message || "task/step failed" });
+    try {
+      send("error", { error: err.message || "task/step failed" });
+      res.end();
+    } catch {}
   }
 });
 

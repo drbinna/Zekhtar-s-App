@@ -3,10 +3,37 @@
 // space (the display_width_px / display_height_px we declared); we translate
 // them to physical screen coordinates using the captured shot's display bounds.
 
-const { mouse, keyboard, Button, Key, Point, straightTo } = require('@nut-tree-fork/nut-js');
+const { mouse, keyboard, Button, Key, Point } = require('@nut-tree-fork/nut-js');
 
 mouse.config.mouseSpeed = 1500;
 keyboard.config.autoDelayMs = 12;
+
+// Ease the cursor with an ease-out cubic so motion reads as intentional rather
+// than teleported. nut-js's straightTo is linear at config.mouseSpeed; this
+// gives a brisk decelerating arc that's easier for users to follow.
+async function easeTo(point) {
+  const start = await mouse.getPosition();
+  const dx = point.x - start.x;
+  const dy = point.y - start.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 2) {
+    await mouse.setPosition(point);
+    return;
+  }
+  const durationMs = Math.min(380, Math.max(180, 180 + dist * 0.4));
+  const steps = Math.max(8, Math.round(durationMs / 16));
+  const t0 = Date.now();
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const eased = 1 - Math.pow(1 - t, 3);
+    const x = Math.round(start.x + dx * eased);
+    const y = Math.round(start.y + dy * eased);
+    await mouse.setPosition(new Point(x, y));
+    const targetTime = t0 + (i / steps) * durationMs;
+    const wait = targetTime - Date.now();
+    if (wait > 1) await new Promise((r) => setTimeout(r, wait));
+  }
+}
 
 const KEY_MAP = {
   cmd: Key.LeftCmd, command: Key.LeftCmd, super: Key.LeftCmd, win: Key.LeftCmd,
@@ -85,7 +112,7 @@ async function executeAction(action, shot) {
 
     case 'mouse_move': {
       const p = translate(shot, action.coordinate[0], action.coordinate[1]);
-      await mouse.move(straightTo(p));
+      await easeTo(p);
       return { kind: 'ok' };
     }
 
@@ -96,7 +123,7 @@ async function executeAction(action, shot) {
     case 'triple_click': {
       if (action.coordinate) {
         const p = translate(shot, action.coordinate[0], action.coordinate[1]);
-        await mouse.move(straightTo(p));
+        await easeTo(p);
       }
       const button = action.action.startsWith('right') ? Button.RIGHT
         : action.action.startsWith('middle') ? Button.MIDDLE
@@ -119,10 +146,10 @@ async function executeAction(action, shot) {
       const start = action.start_coordinate || action.coordinate;
       const end = action.coordinate;
       if (action.start_coordinate) {
-        await mouse.move(straightTo(translate(shot, start[0], start[1])));
+        await easeTo(translate(shot, start[0], start[1]));
       }
       await mouse.pressButton(Button.LEFT);
-      await mouse.move(straightTo(translate(shot, end[0], end[1])));
+      await easeTo(translate(shot, end[0], end[1]));
       await mouse.releaseButton(Button.LEFT);
       return { kind: 'ok' };
     }
@@ -146,7 +173,7 @@ async function executeAction(action, shot) {
     case 'scroll': {
       if (action.coordinate) {
         const p = translate(shot, action.coordinate[0], action.coordinate[1]);
-        await mouse.move(straightTo(p));
+        await easeTo(p);
       }
       const amt = Math.max(1, Math.abs(action.scroll_amount || 3));
       const dir = (action.scroll_direction || 'down').toLowerCase();
