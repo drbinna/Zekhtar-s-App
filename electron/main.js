@@ -36,11 +36,13 @@ if (fs.existsSync(userEnvPath)) {
 }
 
 const SERVER_PORT = parseInt(process.env.PORT, 10) || 3000;
-let SERVER_URL = process.env.ZEKTHAR_SERVER_URL || `http://localhost:${SERVER_PORT}`;
-// Shared access token for the hosted backend. Baked in at build time for
-// shipped apps (via ZEKTHAR_ACCESS_TOKEN); empty for local dev where the
-// embedded server runs without an auth gate.
-const ACCESS_TOKEN = process.env.ZEKTHAR_ACCESS_TOKEN || '';
+// Production backend config (hosted Fly backend with keys). Local dev env vars
+// override it so the embedded-server loop still works.
+let BACKEND_CONFIG = { BACKEND_URL: '', ACCESS_TOKEN: '' };
+try { BACKEND_CONFIG = require('./backend-config'); } catch { /* dev: no config file */ }
+// Precedence: explicit env var (dev) > baked-in prod config > localhost.
+let SERVER_URL = process.env.ZEKTHAR_SERVER_URL || BACKEND_CONFIG.BACKEND_URL || `http://localhost:${SERVER_PORT}`;
+const ACCESS_TOKEN = process.env.ZEKTHAR_ACCESS_TOKEN || BACKEND_CONFIG.ACCESS_TOKEN || '';
 // Build headers for backend calls, attaching the bearer token when present.
 function backendHeaders(extra = {}) {
   const h = { 'Content-Type': 'application/json', ...extra };
@@ -618,8 +620,11 @@ ipcMain.on('anam:history', (_e, messages) => {
 
 app.whenReady().then(async () => {
   // ─── Start embedded Express server ───────────────────
-  // Skip if an external server URL was explicitly set (dev mode).
-  if (!process.env.ZEKTHAR_SERVER_URL) {
+  // Only start the local server when we're NOT pointed at a remote backend.
+  // Packaged builds use the hosted Fly backend (baked config); dev may set
+  // ZEKTHAR_SERVER_URL. Either way, if SERVER_URL isn't localhost, skip.
+  const usingRemoteBackend = !SERVER_URL.includes('localhost') && !SERVER_URL.includes('127.0.0.1');
+  if (!usingRemoteBackend) {
     try {
       const server = require(path.join(APP_ROOT, 'server.js'));
       const { port: actualPort } = await server.start(SERVER_PORT);
@@ -628,6 +633,8 @@ app.whenReady().then(async () => {
     } catch (err) {
       console.error('[boot] failed to start embedded server:', err);
     }
+  } else {
+    console.log('[boot] using remote backend at', SERVER_URL);
   }
 
   HISTORY_FILE = path.join(app.getPath('userData'), 'history.json');
