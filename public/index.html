@@ -502,10 +502,12 @@
       setStatus("", "Connecting...");
 
       try {
-        // 1. Get session token from our backend
-        const res = await fetch("/api/session", { method: "POST" });
-        if (!res.ok) throw new Error("Failed to get session token");
-        const { sessionToken } = await res.json();
+        // 1. Get session token via the main-process bridge. (A relative
+        //    fetch("/api/session") fails here because the page is loaded from
+        //    file://, which has no host/port — and the server may be on 3001+
+        //    if 3000 was busy. The IPC handler knows the real SERVER_URL.)
+        const sessionToken = await window.electronAPI.getSessionToken();
+        if (!sessionToken) throw new Error("Failed to get session token");
 
         // 2. Create Anam client (persona is now configured in the session token)
         anamClient = createClient(sessionToken);

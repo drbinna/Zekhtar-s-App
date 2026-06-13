@@ -1,6 +1,6 @@
 {
   "name": "zekthar",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Zek'thar — an alien scientist who can see your screen",
   "main": "electron/main.js",
   "scripts": {

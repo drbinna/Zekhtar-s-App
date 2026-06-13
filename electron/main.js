@@ -623,10 +623,11 @@ app.whenReady().then(async () => {
   HISTORY_FILE = path.join(app.getPath('userData'), 'history.json');
   loadHistory();
 
-  // Prime the screen-capture pipeline so the first task doesn't pay the
-  // cold-start cost. Fire-and-forget — Electron's screen module isn't ready
-  // until after whenReady so this is the earliest valid point.
-  capture.warmup();
+  // NOTE: capture warmup intentionally removed. It called desktopCapturer at
+  // launch (touching WindowServer before the compositor had settled), which
+  // correlated with WindowServer watchdog reboots on some Macs. The ~300ms
+  // cold-start it saved isn't worth the risk; capture now happens lazily on
+  // the first real user action (chat/task), by which point the UI is settled.
 
   // Start checking for updates (no-op in dev mode)
   updater.init();
