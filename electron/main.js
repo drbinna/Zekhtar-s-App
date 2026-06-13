@@ -37,6 +37,16 @@ if (fs.existsSync(userEnvPath)) {
 
 const SERVER_PORT = parseInt(process.env.PORT, 10) || 3000;
 let SERVER_URL = process.env.ZEKTHAR_SERVER_URL || `http://localhost:${SERVER_PORT}`;
+// Shared access token for the hosted backend. Baked in at build time for
+// shipped apps (via ZEKTHAR_ACCESS_TOKEN); empty for local dev where the
+// embedded server runs without an auth gate.
+const ACCESS_TOKEN = process.env.ZEKTHAR_ACCESS_TOKEN || '';
+// Build headers for backend calls, attaching the bearer token when present.
+function backendHeaders(extra = {}) {
+  const h = { 'Content-Type': 'application/json', ...extra };
+  if (ACCESS_TOKEN) h['Authorization'] = `Bearer ${ACCESS_TOKEN}`;
+  return h;
+}
 const HISTORY_LIMIT = 20; // last 10 exchanges (user+assistant)
 // Flip this on once Zek'thar can actually click. For now the pointer is
 // decorative and tends to stick around after a capture.
@@ -306,7 +316,7 @@ async function runTask(goal) {
 
       const res = await fetch(`${SERVER_URL}/api/task/step`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: backendHeaders(),
         body: JSON.stringify({
           conversation,
           displayWidth: lastShot.width,
@@ -479,7 +489,7 @@ async function chat(transcript) {
 
     const res = await fetch(`${SERVER_URL}/api/vision/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: backendHeaders(),
       body: JSON.stringify({
         transcript,
         screenshots,
@@ -539,7 +549,7 @@ ipcMain.handle('get-session-token', async () => {
   try {
     const response = await fetch(`${SERVER_URL}/api/session`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: backendHeaders(),
     });
     const data = await response.json();
     return data.sessionToken;

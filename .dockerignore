@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.env
+.env.*
+electron
+electron-builder.yml
+.github
+*.dmg
+*.zip
+*.blockmap
+Screenshot*

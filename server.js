@@ -35,6 +35,28 @@ app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Unauthenticated health check — Fly/uptime pings hit this.
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
+
+// ─────────────────────────────────────────────
+// Auth gate. When ACCESS_TOKEN is set (hosted mode), every /api/* request must
+// send a matching `Authorization: Bearer <token>` or `x-zekthar-token` header.
+// Without this, anyone who finds the public URL could spend our Anam/Claude
+// credits. When ACCESS_TOKEN is unset (local dev), the gate is a no-op.
+// NOTE: a token baked into a shipped desktop app is extractable by a determined
+// user — this stops casual/drive-by abuse, not a motivated attacker. Real
+// per-user auth is the follow-up once we have accounts.
+// ─────────────────────────────────────────────
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN || "";
+app.use("/api", (req, res, next) => {
+  if (!ACCESS_TOKEN) return next(); // local dev: open
+  const auth = req.get("authorization") || "";
+  const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const token = bearer || req.get("x-zekthar-token") || "";
+  if (token && token === ACCESS_TOKEN) return next();
+  return res.status(401).json({ error: "Unauthorized" });
+});
+
 // ─────────────────────────────────────────────
 // POST /api/session — Anam session token
 // ─────────────────────────────────────────────
@@ -54,6 +76,14 @@ app.post("/api/session", async (req, res) => {
     if (!response.ok) {
       const err = await response.text();
       console.error("Anam API error:", response.status, err);
+      // 429 = Anam concurrency/usage limit. Give the client a clean, friendly
+      // signal instead of a raw error so the UI can say "all observers busy".
+      if (response.status === 429) {
+        return res.status(429).json({
+          error: "busy",
+          message: "All observers are busy right now — try again in a moment.",
+        });
+      }
       return res.status(response.status).json({ error: err });
     }
 
@@ -323,12 +353,15 @@ app.post("/api/voice/intent", async (req, res) => {
 
 function start(port) {
   const requested = port || PORT;
+  // When hosted (e.g. Fly), bind 0.0.0.0 so the platform can route to us.
+  // Locally, default to 127.0.0.1 so the embedded server isn't exposed.
+  const host = process.env.HOST || (process.env.ZEKTHAR_HOSTED ? '0.0.0.0' : '127.0.0.1');
   return new Promise((resolve, reject) => {
     const tryListen = (p, attemptsLeft) => {
-      const server = app.listen(p, '127.0.0.1');
+      const server = app.listen(p, host);
       server.once('listening', () => {
         const actualPort = server.address().port;
-        console.log(`\n  ✦ Zek'thar is ready at http://localhost:${actualPort}\n`);
+        console.log(`\n  ✦ Zek'thar backend ready on ${host}:${actualPort}\n`);
         resolve({ server, port: actualPort });
       });
       server.once('error', (err) => {
