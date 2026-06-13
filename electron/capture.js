@@ -36,7 +36,36 @@ async function screencaptureFallback(displayIndex1Based) {
   }
 }
 
+// Cache the last snapshot (and any in-flight one) so wake-word-triggered
+// prefetches can hide capture latency from the task seed step.
+let lastShots = null;
+let lastShotsAt = 0;
+let pendingSnapshot = null;
+
+// Return shots that are either pending (await the in-flight prefetch) or
+// recently captured (<= maxAgeMs old). Returns null if neither — caller
+// should fall back to a fresh capture.snapshot().
+async function recentOrPending(maxAgeMs = 2000) {
+  if (pendingSnapshot) {
+    try { return await pendingSnapshot; } catch { return null; }
+  }
+  if (lastShots && Date.now() - lastShotsAt <= maxAgeMs) {
+    return lastShots;
+  }
+  return null;
+}
+
 async function snapshot() {
+  if (pendingSnapshot) return pendingSnapshot;
+  const p = _captureNow().then(
+    (shots) => { lastShots = shots; lastShotsAt = Date.now(); return shots; },
+    (err) => { throw err; },
+  ).finally(() => { if (pendingSnapshot === p) pendingSnapshot = null; });
+  pendingSnapshot = p;
+  return p;
+}
+
+async function _captureNow() {
   const displays = screen.getAllDisplays();
   const cursorPoint = screen.getCursorScreenPoint();
   const focusedDisplay = screen.getDisplayNearestPoint(cursorPoint);
@@ -143,4 +172,16 @@ function mapToGlobal(shot, x, y) {
   };
 }
 
-module.exports = { snapshot, mapToGlobal };
+// First desktopCapturer call after launch can be slow (~300-600ms cold start
+// on macOS). Run a throwaway call during app init so the first real snapshot
+// hits a warm pipeline. Errors are swallowed — this is best-effort.
+async function warmup() {
+  try {
+    await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 16, height: 16 },
+    });
+  } catch {}
+}
+
+module.exports = { snapshot, mapToGlobal, warmup, recentOrPending };

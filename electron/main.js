@@ -282,8 +282,10 @@ async function runTask(goal) {
   let lastShot = null;
 
   try {
-    // Grab an initial screenshot up front so the first turn has something to reason over.
-    const seedShots = await capture.snapshot();
+    // Grab an initial screenshot up front so the first turn has something to
+    // reason over. Use a wake-word prefetch if one's in flight or recent —
+    // hides ~150ms of capture latency from the task seed step.
+    const seedShots = (await capture.recentOrPending(2000)) || (await capture.snapshot());
     lastShot = seedShots.find((s) => s.isFocus) || seedShots[0];
     if (!lastShot) {
       speakNarration("can't see your screen — grant screen recording permission and try again.");
@@ -317,18 +319,51 @@ async function runTask(goal) {
         speakNarration("the brain link dropped. let's try again later.");
         break;
       }
-      const { content, stopReason } = await res.json();
+
+      // Stream SSE events: speak `text` blocks the moment they land so the
+      // avatar starts talking before tool_use generation finishes.
+      const content = [];
+      let stopReason = null;
+      let streamError = null;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep;
+        while ((sep = buffer.indexOf('\n\n')) !== -1) {
+          const raw = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          if (!raw.trim()) continue;
+          const evMatch = raw.match(/^event: (.+)$/m);
+          const dataMatch = raw.match(/^data: (.+)$/m);
+          if (!evMatch || !dataMatch) continue;
+          const ev = evMatch[1];
+          let data;
+          try { data = JSON.parse(dataMatch[1]); } catch { continue; }
+          if (ev === 'text') {
+            if (data.text && data.text.trim()) speakNarration(data.text.trim());
+            content.push({ type: 'text', text: data.text });
+          } else if (ev === 'tool_use') {
+            content.push({ type: 'tool_use', id: data.id, name: data.name, input: data.input });
+          } else if (ev === 'done') {
+            stopReason = data.stopReason;
+          } else if (ev === 'error') {
+            streamError = data.error;
+          }
+        }
+      }
+      if (streamError) {
+        console.error('[task] stream error:', streamError);
+        speakNarration("the brain link dropped. let's try again later.");
+        break;
+      }
       console.log('[task] step', step + 1, 'stop=', stopReason, 'blocks=', content.map((b) => b.type).join(','));
 
       // Append assistant turn to conversation.
       conversation.push({ role: 'assistant', content });
-
-      // Speak any text blocks (Claude's narration).
-      for (const block of content) {
-        if (block.type === 'text' && block.text && block.text.trim()) {
-          speakNarration(block.text.trim());
-        }
-      }
 
       // If there are no tool_use blocks, Claude's done (success or stuck-and-said-so).
       const toolUses = content.filter((b) => b.type === 'tool_use');
@@ -523,6 +558,11 @@ ipcMain.on('move-window', (_e, { deltaX, deltaY }) => {
 ipcMain.on('overlay:clear', () => overlay.clear());
 
 // Voice-trigger debug breadcrumbs surfaced from the renderer.
+ipcMain.on('snapshot:prefetch', () => {
+  // Fire-and-forget; result is cached for the next runTask seed step.
+  capture.snapshot().catch(() => {});
+});
+
 ipcMain.on('voice:log', (_e, { label, text }) => {
   console.log(`[voice] ${label}: ${typeof text === 'string' ? text : JSON.stringify(text)}`);
 });
@@ -582,6 +622,11 @@ app.whenReady().then(async () => {
 
   HISTORY_FILE = path.join(app.getPath('userData'), 'history.json');
   loadHistory();
+
+  // Prime the screen-capture pipeline so the first task doesn't pay the
+  // cold-start cost. Fire-and-forget — Electron's screen module isn't ready
+  // until after whenReady so this is the earliest valid point.
+  capture.warmup();
 
   // Start checking for updates (no-op in dev mode)
   updater.init();
