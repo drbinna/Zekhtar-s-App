@@ -569,6 +569,14 @@
       handleDisconnect();
     }
 
+    // Tear down the live Anam session if the window is closed or the app quits.
+    // Without this, a crash/quit/force-close leaves the session open server-side,
+    // consuming a concurrency slot until it times out — which surfaces later as
+    // a 429 "usage limit reached" when the next launch tries to open a session.
+    window.addEventListener("pagehide", () => {
+      try { if (anamClient) anamClient.stopStreaming(); } catch {}
+    });
+
     function handleDisconnect() {
       isConnected = false;
       setStatus("", "Offline");

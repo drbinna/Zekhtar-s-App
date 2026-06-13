@@ -681,6 +681,16 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  // Best-effort: tell the renderer to close any live Anam session so we don't
+  // orphan a concurrency slot on quit. The renderer also handles 'pagehide',
+  // this is a belt-and-suspenders for the quit path.
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(
+        'try { if (window.disconnectSession) window.disconnectSession(); } catch (e) {}'
+      ).catch(() => {});
+    }
+  } catch {}
 });
 
 app.on('window-all-closed', () => {
